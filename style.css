@@ -1,0 +1,1028 @@
+/* ============================================================
+   QUIET — Focus / Screensaver app
+   Palette & type system:
+   - Fondo: immagine ambiente (cambia per suono selezionato)
+   - Vetro: bianco liquido, bassa opacità, blur alto, radius elevato
+   - Accent: bianco puro per testo/icone, nessun colore acceso
+     (il colore lo porta sempre e solo lo sfondo naturale)
+   - Type: "Inter Tight" per numeri/titoli (stessa superfamiglia di Inter,
+     più leggibile, pensata per titoli/display),
+     "Inter" per UI/testo (leggibilità, neutralità)
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+
+:root{
+  --glass: rgba(255,255,255,0.16);
+  --glass-strong: rgba(255,255,255,0.24);
+  --glass-border: rgba(255,255,255,0.35);
+  --text: #ffffff;
+  --text-dim: rgba(255,255,255,0.72);
+  --text-faint: rgba(255,255,255,0.5);
+  --radius-xl: 32px;
+  --radius-lg: 26px;
+  --radius-md: 18px;
+  --radius-sm: 12px;
+  --blur: 28px;
+  --ease: cubic-bezier(.22,1,.36,1);
+  --dock-h: 92px;
+}
+
+*{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html,body{
+  height:100%;
+  margin:0;
+  overflow:hidden;
+  font-family:'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--text);
+}
+
+/* ---------- Background layers (crossfade between scenes) ---------- */
+.bg-layer{
+  position:fixed; inset:0;
+  background-size:cover;
+  background-position:center;
+  transition: opacity 1.6s var(--ease);
+  z-index:0;
+}
+.bg-a{ z-index:0; }
+.bg-b{ z-index:0; opacity:0; }
+.bg-overlay{
+  position:fixed; inset:0; z-index:1;
+  background: linear-gradient(180deg, rgba(0,0,0,0.28) 0%, rgba(0,0,0,0.12) 35%, rgba(0,0,0,0.38) 100%);
+  pointer-events:none;
+}
+.bg-noise{
+  position:fixed; inset:0; z-index:2;
+  opacity:0.035;
+  pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- App shell ---------- */
+.app{
+  position:relative; z-index:3;
+  height:100%;
+  width:100%;
+}
+
+/* ---------- Glass base ---------- */
+.glass{
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(140%);
+  backdrop-filter: blur(var(--blur)) saturate(140%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.25);
+}
+
+/* ---------- Schermata iniziale ---------- */
+.intro-screen{
+  position:fixed; inset:0; z-index:100;
+  display:flex; align-items:center; justify-content:center;
+  padding: 40px 24px;
+  background: rgba(0,0,0,0.22);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  transition: opacity .6s var(--ease), visibility .6s var(--ease);
+}
+.intro-screen.intro-hidden{
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+}
+.intro-content{
+  max-width:720px;
+  width:100%;
+  text-align:center;
+}
+.intro-h1{
+  font-family:'Inter Tight', sans-serif;
+  font-weight:800;
+  font-size: clamp(32px, 6vw, 58px);
+  letter-spacing:-0.01em;
+  line-height:1.08;
+  text-shadow: 0 8px 34px rgba(0,0,0,0.4);
+  margin-bottom:12px;
+}
+.intro-h2{
+  font-family:'Inter', sans-serif;
+  font-weight:500;
+  font-size: clamp(15px, 2.2vw, 19px);
+  color: var(--text-dim);
+  text-shadow: 0 2px 14px rgba(0,0,0,0.35);
+  margin-bottom:38px;
+}
+.intro-sounds{
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+  justify-content:center;
+}
+.intro-sound-btn{
+  padding:14px 24px;
+  border-radius:999px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--blur));
+  backdrop-filter: blur(var(--blur));
+  border:1px solid var(--glass-border);
+  color:#fff;
+  font-family:'Inter Tight', sans-serif;
+  font-weight:600;
+  font-size:15px;
+  cursor:pointer;
+  transition: background .2s, transform .2s var(--ease);
+}
+.intro-sound-btn:hover{
+  background: var(--glass-strong);
+  transform: translateY(-3px);
+}
+
+/* ================= TOP-LEFT: brand mark ================= */
+.brand{
+  position:fixed; top:22px; left:26px; z-index:10;
+  font-family:'Inter Tight', sans-serif;
+  font-weight:700;
+  font-size:22px;
+  letter-spacing:0.01em;
+  color:var(--text);
+  opacity:0.92;
+  display:flex; align-items:center; gap:9px;
+  user-select:none;
+}
+.brand::before{
+  content:'';
+  width:9px; height:9px;
+  border-radius:50%;
+  background: rgba(255,255,255,0.85);
+  box-shadow: 0 0 10px rgba(255,255,255,0.7);
+}
+
+/* ================= TOP-RIGHT: settings gear + sound panel ================= */
+.settings-gear{
+  position:fixed; top:18px; right:26px; z-index:90;
+  width:40px; height:40px;
+  border-radius:50%;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--blur));
+  backdrop-filter: blur(var(--blur));
+  border:1px solid var(--glass-border);
+  color:var(--text);
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  transition: transform .3s var(--ease), background .2s;
+}
+.settings-gear:hover{ background: var(--glass-strong); }
+.settings-gear svg{ width:19px; height:19px; }
+.settings-gear.open{ transform: rotate(75deg); background: var(--glass-strong); }
+
+/* Bottone "svuota widget": su desktop/tablet sta subito a sinistra della
+   rotellina cambia-suono, stesso stile e stessa dimensione */
+.clear-widgets-btn{
+  display:flex; align-items:center; justify-content:center;
+  position:fixed; top:18px; right:76px; z-index:90;
+  width:40px; height:40px;
+  border-radius:50%;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--blur));
+  backdrop-filter: blur(var(--blur));
+  border:1px solid var(--glass-border);
+  color:var(--text);
+  cursor:pointer;
+  transition: background .2s, transform .2s;
+}
+.clear-widgets-btn:hover{ background: var(--glass-strong); }
+.clear-widgets-btn svg{ width:18px; height:18px; }
+
+.sound-panel{
+  position:fixed; top:66px; right:26px; z-index:90;
+  width:230px;
+  max-height: min(60vh, 480px);
+  padding: 14px 14px 14px;
+  display:flex; flex-direction:column; gap:10px;
+  opacity:0;
+  pointer-events:none;
+  transform: translateY(-10px) scale(0.95);
+  transform-origin: top right;
+  transition: opacity .28s var(--ease), transform .28s var(--ease);
+}
+.sound-panel.open{
+  opacity:1;
+  pointer-events:auto;
+  transform: translateY(0) scale(1);
+}
+.sound-panel-title{
+  font-family:'Inter Tight', sans-serif;
+  font-weight:700;
+  font-size:14px;
+  color: var(--text-dim);
+  padding: 0 2px;
+}
+.sound-panel-list{
+  display:flex; flex-direction:column; gap:4px;
+  overflow-y:auto;
+}
+.sound-panel-item{
+  text-align:left;
+  padding:10px 12px;
+  border-radius: var(--radius-sm);
+  background:none;
+  border:1px solid transparent;
+  color: var(--text);
+  font-family:'Inter',sans-serif;
+  font-size:13.5px;
+  font-weight:500;
+  cursor:pointer;
+  transition: background .16s;
+}
+.sound-panel-item:hover{ background: rgba(255,255,255,0.14); }
+.sound-panel-item.active{
+  background: rgba(255,255,255,0.9);
+  color:#1a1a1a;
+  font-weight:600;
+}
+
+/* ================= PAGE DOTS (solo smartphone) ================= */
+.page-dots{
+  position:fixed;
+  top:18px;
+  left:50%;
+  transform: translateX(-50%);
+  z-index:11;
+  display:none;
+  gap:7px;
+  padding:7px 10px;
+  border-radius:999px;
+  background: rgba(255,255,255,0.14);
+  -webkit-backdrop-filter: blur(var(--blur));
+  backdrop-filter: blur(var(--blur));
+  border:1px solid rgba(255,255,255,0.22);
+}
+.page-dots.show{ display:flex; }
+.page-dot{
+  width:7px; height:7px;
+  border-radius:50%;
+  background: rgba(255,255,255,0.35);
+  cursor:pointer;
+  transition: background .2s, transform .2s;
+}
+.page-dot.active{ background:#fff; transform:scale(1.25); }
+.page-dot.disabled{ opacity:0.3; cursor:default; pointer-events:none; }
+
+/* ================= PLAYER (sempre visibile, sopra la dock) ================= */
+.player-wrap{
+  position:fixed;
+  left:50%;
+  bottom: calc(var(--dock-h) + 16px);
+  transform: translateX(-50%);
+  z-index:9;
+  width:min(560px, 92vw);
+}
+.player{
+  padding: 22px 26px 18px;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+.player-top{
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+.player-scene-icon{
+  width:44px; height:44px;
+  border-radius: var(--radius-md);
+  background: var(--glass-strong);
+  border:1px solid var(--glass-border);
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.player-scene-icon svg{ width:22px; height:22px; }
+.player-info{ flex:1; min-width:0; }
+.player-title{
+  font-family:'Inter Tight', sans-serif;
+  font-size:21px;
+  font-weight:700;
+  line-height:1.15;
+}
+.player-sub{
+  font-size:12px;
+  color: var(--text-dim);
+  margin-top:2px;
+  display:flex;
+  gap:8px;
+  align-items:center;
+  font-variant-numeric: tabular-nums;
+}
+
+.player-controls-inline{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-shrink:0;
+}
+.ctrl-btn{
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  color: var(--text);
+  border-radius: 50%;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  transition: transform .18s var(--ease), background .18s;
+}
+.ctrl-btn:hover{ background: rgba(255,255,255,0.32); }
+.ctrl-btn:active{ transform: scale(0.92); }
+.ctrl-btn.play{ width:52px; height:52px; }
+.ctrl-btn.play svg{ width:22px; height:22px; }
+#playIconWrap{ display:flex; align-items:center; justify-content:center; }
+.ctrl-btn.small{ width:42px; height:42px; }
+.ctrl-btn.small svg{ width:19px; height:19px; }
+.ctrl-btn.repeat.active{ background: rgba(255,255,255,0.42); }
+
+/* Duration slider */
+.duration-row{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.duration-labels{
+  display:flex;
+  justify-content:space-between;
+  font-size:11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.duration-value{
+  font-family:'Inter Tight', sans-serif;
+  font-size:14px;
+  color: var(--text);
+  font-weight:600;
+}
+.slider-track{
+  position:relative;
+  height:6px;
+  border-radius:999px;
+  background: rgba(255,255,255,0.18);
+  cursor:pointer;
+}
+.slider-fill{
+  position:absolute; left:0; top:0; bottom:0;
+  border-radius:999px;
+  background: rgba(255,255,255,0.85);
+  width:20%;
+  pointer-events:none;
+}
+.slider-handle{
+  position:absolute;
+  top:50%;
+  width:20px; height:20px;
+  border-radius:50%;
+  background:#fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  transform: translate(-50%,-50%);
+  left:20%;
+  cursor:grab;
+  border:2px solid rgba(255,255,255,0.9);
+}
+.slider-handle:active{ cursor:grabbing; }
+
+/* ================= DOCK (sempre attiva, nessuna animazione di comparsa/scomparsa) ================= */
+.dock-wrap{
+  position:fixed;
+  left:50%;
+  bottom:18px;
+  transform: translateX(-50%);
+  z-index:20;
+}
+.dock{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  padding:14px 20px;
+  height: calc(var(--dock-h) - 20px);
+}
+.dock-btn{
+  width:54px; height:54px;
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.12);
+  border:1px solid rgba(255,255,255,0.22);
+  display:flex; align-items:center; justify-content:center;
+  font-size:22px;
+  cursor:pointer;
+  position:relative;
+  transition: transform .22s var(--ease), background .22s;
+  flex-shrink:0;
+}
+.dock-btn:hover{ transform: translateY(-4px); background: rgba(255,255,255,0.22); }
+.dock-btn.active{ background: rgba(255,255,255,0.9); color:#1a1a1a; }
+.dock-btn svg{ width:25px; height:25px; color: currentColor; }
+.dock-btn .label{
+  position:absolute;
+  bottom:calc(100% + 10px);
+  left:50%; transform:translateX(-50%);
+  font-size:11px;
+  color:#ffffff;
+  background: rgba(20,20,20,0.85);
+  padding:5px 10px;
+  border-radius:8px;
+  white-space:nowrap;
+  opacity:0;
+  pointer-events:none;
+  transition: opacity .18s;
+}
+.dock-btn:hover .label{ opacity:1; }
+.dock-divider{
+  width:1px; height:32px;
+  background: rgba(255,255,255,0.25);
+  flex-shrink:0;
+}
+
+/* ================= WIDGET base (expand/collapse) ================= */
+.widget{
+  position:fixed;
+  z-index:15;
+  display:flex;
+  flex-direction:column;
+  opacity:0;
+  pointer-events:none;
+  transform: scale(0.85);
+  transform-origin: bottom center;
+  transition: opacity .38s var(--ease), transform .38s var(--ease);
+}
+.widget.open{
+  opacity:1;
+  pointer-events:auto;
+  transform: scale(1);
+}
+/* Trascinamento: durante il drag disattivo le transizioni per reattività,
+   l'header (o l'intero widget per l'orologio) fa da maniglia */
+.widget.widget-dragging{ transition:none !important; }
+.widget-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:16px 18px 10px;
+  flex-shrink:0;
+  cursor: grab;
+  touch-action: none;
+}
+.widget-head:active{ cursor: grabbing; }
+#widget-clock{ cursor: grab; touch-action: none; }
+#widget-clock.widget-dragging{ cursor: grabbing; }
+.widget-title{
+  font-family:'Inter Tight', sans-serif;
+  font-size:17px;
+  font-weight:700;
+  display:flex; align-items:center; gap:8px;
+}
+.widget-title svg{ width:19px; height:19px; flex-shrink:0; opacity:0.85; }
+.widget-close{
+  width:28px; height:28px;
+  border-radius:50%;
+  background: rgba(255,255,255,0.14);
+  border:1px solid rgba(255,255,255,0.22);
+  color:var(--text);
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  font-size:13px;
+  flex-shrink:0;
+}
+.widget-close:hover{ background: rgba(255,255,255,0.28); }
+.widget-body{
+  padding: 0 18px 10px;
+  overflow-y:auto;
+}
+
+/* ---- Positions (desktop) ---- */
+/* Calendario: sinistra */
+#widget-calendar{
+  top: 84px; left: 24px;
+  width: 300px;
+}
+/* Note/Elenco (widget unificato con navigazione interna a frecce): destra */
+#widget-noteslist{
+  top: 84px; right: 24px;
+  width: 300px;
+  max-height: calc(100vh - 340px);
+}
+/* Orologio: centro alto, nessun vetro, dimensione ridotta rispetto a prima. */
+#widget-clock{
+  top: 46px; left:50%; transform: translateX(-50%) scale(0.85);
+  width: 500px;
+  text-align:center;
+  padding: 4px 0 0;
+}
+.widget.open#widget-clock{ transform: translateX(-50%) scale(1); }
+
+/* Strumenti tempo (Sveglia/Cronometro/Timer unificati con navigazione
+   interna a frecce): stessa larghezza del Calendario, posizionato a destra
+   subito sotto Note/Elenco. Altezza pensata per mostrare sempre tutto il
+   contenuto delle tre viste (Sveglia/Cronometro/Timer) senza scorrimento
+   nei casi normali; il tetto (100vh - 250px) resta solo come rete di
+   sicurezza per non uscire mai dal viewport se il Cronometro accumula
+   molte voci. */
+#widget-tools{
+  top: 290px; right: 24px;
+  width: 300px;
+}
+#widget-tools .widget-body{ max-height: calc(100vh - 250px); overflow-y:auto; }
+
+/* ================= CLOCK (grande, senza vetro) ================= */
+.widget-close-float{
+  position:absolute; top:-4px; right:-4px;
+  width:30px; height:30px;
+  border-radius:50%;
+  background: rgba(255,255,255,0.16);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border:1px solid rgba(255,255,255,0.32);
+  color:#fff;
+  cursor:pointer;
+  font-size:13px;
+  display:flex; align-items:center; justify-content:center;
+  transition: background .18s;
+}
+.widget-close-float:hover{ background: rgba(255,255,255,0.32); }
+.clock-big{
+  font-family:'Inter Tight', sans-serif;
+  font-weight:700;
+  font-size: clamp(52px, 8vw, 96px);
+  letter-spacing:-0.01em;
+  font-variant-numeric: tabular-nums;
+  line-height:1;
+  text-shadow: 0 6px 30px rgba(0,0,0,0.4);
+}
+.clock-date-big{
+  font-family:'Inter Tight', sans-serif;
+  font-size:20px;
+  font-weight:500;
+  color: var(--text-dim);
+  margin-top:10px;
+  text-transform:capitalize;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.35);
+}
+
+/* ================= STOPWATCH ================= */
+.sw-instance{
+  padding:10px 0 12px;
+  border-top: 1px solid rgba(255,255,255,0.14);
+}
+.sw-instance:first-child{ border-top:none; padding-top:0; }
+.sw-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:10px;
+}
+.sw-time{
+  font-family:'Inter Tight', sans-serif;
+  font-weight:700;
+  font-size:26px;
+  text-align:left;
+  font-variant-numeric: tabular-nums;
+  flex:1;
+  min-width:0;
+}
+#timerDisplay.sw-time{ text-align:center; margin-bottom:12px; }
+
+/* ================= SUB-NAVIGAZIONE INTERNA (widget unificati) ================= */
+.widget-subnav{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:12px;
+}
+.subnav-arrow{
+  width:30px; height:30px;
+  border-radius:50%;
+  background: rgba(255,255,255,0.14);
+  border:1px solid rgba(255,255,255,0.22);
+  color:var(--text);
+  font-size:16px;
+  cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+  transition: background .16s;
+}
+.subnav-arrow:hover{ background: rgba(255,255,255,0.26); }
+.subnav-dots{
+  display:flex; align-items:center; justify-content:center;
+  gap:6px;
+}
+.subnav-dot{
+  width:6px; height:6px;
+  border-radius:50%;
+  background: rgba(255,255,255,0.3);
+  transition: background .18s, transform .18s;
+}
+.subnav-dot.active{ background:#fff; transform:scale(1.3); }
+.subnav-view{ display:none; }
+.subnav-view.active{ display:block; }
+.timer-adjust{
+  display:flex; gap:8px; justify-content:center; margin-bottom:12px;
+}
+.timer-adjust .sw-icon-btn{ width:auto; padding:0 14px; border-radius:999px; font-size:12.5px; }
+
+.sw-buttons{
+  display:flex; gap:8px; justify-content:center;
+}
+.sw-btn{
+  flex:1;
+  padding:9px 0;
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.14);
+  border:1px solid rgba(255,255,255,0.22);
+  color:var(--text);
+  font-size:12.5px;
+  font-weight:500;
+  cursor:pointer;
+  font-family:'Inter',sans-serif;
+}
+.sw-btn:hover{ background: rgba(255,255,255,0.26); }
+.sw-btn.primary{ background: rgba(255,255,255,0.9); color:#1a1a1a; }
+.sw-icon-btn{
+  width:28px; height:28px;
+  border-radius:50%;
+  background: rgba(255,255,255,0.14);
+  border:1px solid rgba(255,255,255,0.24);
+  color:var(--text);
+  font-size:13px;
+  cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.sw-icon-btn:hover{ background: rgba(255,255,255,0.26); }
+.sw-icon-btn.sw-add-icon{ font-size:16px; }
+
+/* ================= ALARM (stesso stile del cronometro) ================= */
+.alarm-time-big{
+  width:100%;
+  background:none;
+  border:none;
+  color: var(--text);
+  font-family:'Inter Tight', sans-serif;
+  font-weight:700;
+  font-size:32px;
+  text-align:center;
+  font-variant-numeric: tabular-nums;
+  margin-bottom:12px;
+  color-scheme: dark;
+}
+.alarm-time-big::-webkit-calendar-picker-indicator{ display:none; }
+.alarm-time-big::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+.alarm-status{
+  font-size:12px;
+  color: var(--text-dim);
+  text-align:center;
+  margin-top:10px;
+}
+
+/* ================= NOTES ================= */
+.notes-add{
+  display:flex; gap:8px; margin-bottom:12px;
+}
+.notes-add textarea{
+  flex:1;
+  min-width:0;
+  resize:none;
+  background: rgba(255,255,255,0.14);
+  border:1px solid rgba(255,255,255,0.22);
+  border-radius: var(--radius-sm);
+  padding:11px 12px;
+  color:var(--text);
+  font-family:'Inter',sans-serif;
+  font-size:13.5px;
+  line-height:1.3;
+  height:44px;
+  white-space:pre-wrap;
+  word-break:break-word;
+  overflow-x:hidden;
+  overflow-y:auto;
+}
+.notes-add textarea::placeholder{ color: var(--text-faint); }
+.notes-save{
+  width:38px; height:44px;
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.9);
+  color:#1a1a1a;
+  border:none;
+  font-size:16px;
+  cursor:pointer;
+  flex-shrink:0;
+}
+.notes-list{
+  display:flex; flex-direction:column; gap:8px;
+}
+.note-item{
+  background: rgba(255,255,255,0.1);
+  border:1px solid rgba(255,255,255,0.18);
+  border-radius: var(--radius-sm);
+  padding:8px 10px 7px;
+  font-size:13.5px;
+  line-height:1.4;
+  position:relative;
+  display:block;
+  text-align:left;
+}
+.note-item > div{
+  padding-right:16px;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+.note-item .note-del{
+  position:absolute; top:5px; right:7px;
+  background:none; border:none;
+  color: var(--text-faint);
+  font-size:12px; cursor:pointer;
+  line-height:1;
+}
+.note-item .note-del:hover{ color:#fff; }
+.note-item .note-time{
+  font-size:10px;
+  color: var(--text-faint);
+  margin-top:4px;
+  display:block;
+  line-height:1.2;
+}
+.notes-empty{ font-size:12.5px; color:var(--text-faint); text-align:center; padding:6px 0 0; }
+
+/* ================= LIST (elenchi semplici) ================= */
+.list-input{
+  box-sizing:border-box;
+  -webkit-appearance:none;
+  appearance:none;
+  flex:1;
+  min-width:0;
+  background: rgba(255,255,255,0.14);
+  border:1px solid rgba(255,255,255,0.22);
+  border-radius: var(--radius-sm);
+  padding:11px 12px;
+  margin:0;
+  color:var(--text);
+  font-family:'Inter',sans-serif;
+  font-size:13.5px;
+  line-height:1.3;
+  height:44px;
+}
+.list-input::placeholder{ color: var(--text-faint); }
+.list-items{
+  display:flex; flex-direction:column; gap:6px;
+}
+.list-item{
+  display:flex; align-items:center; gap:9px;
+  background: rgba(255,255,255,0.1);
+  border:1px solid rgba(255,255,255,0.18);
+  border-radius: var(--radius-sm);
+  padding:9px 10px;
+  font-size:13.5px;
+}
+.list-item input[type="checkbox"]{
+  width:16px; height:16px; flex-shrink:0;
+  accent-color:#ffffff;
+  cursor:pointer;
+}
+.list-item span{ flex:1; word-break:break-word; }
+.list-item.done span{ text-decoration:line-through; opacity:0.5; }
+.list-item .list-del{
+  background:none; border:none; color: var(--text-faint);
+  font-size:12px; cursor:pointer; flex-shrink:0;
+}
+.list-item .list-del:hover{ color:#fff; }
+.list-empty{ font-size:12.5px; color:var(--text-faint); text-align:center; padding:6px 0 0; }
+
+/* ================= CALENDAR ================= */
+.cal-head{
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:10px;
+}
+.cal-nav{
+  width:28px; height:28px;
+  border-radius:50%;
+  background: rgba(255,255,255,0.14);
+  border:1px solid rgba(255,255,255,0.22);
+  color:var(--text);
+  cursor:pointer;
+  font-size:13px;
+}
+.cal-month{
+  font-family:'Inter Tight', sans-serif;
+  font-size:16px;
+  font-weight:600;
+  text-transform:capitalize;
+}
+.cal-grid{
+  display:grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap:4px;
+  text-align:center;
+}
+.cal-dow{
+  font-size:10.5px;
+  color: var(--text-faint);
+  padding-bottom:4px;
+  text-transform:uppercase;
+}
+.cal-day{
+  aspect-ratio:1;
+  display:flex; align-items:center; justify-content:center;
+  border-radius:10px;
+  font-size:12.5px;
+  cursor:pointer;
+  transition: background .15s;
+}
+.cal-day:hover{ background: rgba(255,255,255,0.14); }
+.cal-day.other{ color: var(--text-faint); opacity:0.4; cursor:default; }
+.cal-day.other:hover{ background:none; }
+.cal-day.today{
+  background: rgba(255,255,255,0.9);
+  color:#1a1a1a;
+  font-weight:600;
+}
+.cal-day.has-event{
+  background: #ff5a5a;
+  color:#ffffff;
+  font-weight:600;
+}
+.cal-day.has-event:hover{ background: #ff6e6e; }
+.cal-day.today.has-event{
+  background: #ff5a5a;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.85) inset;
+}
+
+/* ================= Responsive ================= */
+@media (max-width: 980px){
+  #widget-calendar{ left:16px; width:260px; }
+  #widget-noteslist{ right:16px; width:270px; max-height: calc(100vh - 300px); }
+  #widget-clock{ width:min(460px, 92vw); top:44px; }
+  .clock-big{ font-size: clamp(44px, 10vw, 72px); }
+  #widget-tools{
+    width: min(300px, 60vw);
+    top: 190px; transform: translateX(-50%) scale(0.85);
+  }
+  .widget.open#widget-tools{ transform: translateX(-50%) scale(1); }
+  #widget-tools .widget-body{ max-height: calc(100vh - 430px); overflow-y:auto; }
+}
+
+/* Calendario ingrandito SOLO nella fascia tablet (761-980px): le celle del
+   mese hanno aspect-ratio 1:1, quindi allargare il widget ne aumenta anche
+   l'altezza automaticamente. */
+@media (min-width: 761px) and (max-width: 980px){
+  #widget-calendar{ width: 300px; max-height: calc(100vh - 200px); }
+}
+
+@media (max-width: 760px){
+  :root{ --dock-h: 100px; }
+  .brand{ font-size:16px; top:16px; left:16px; gap:8px; }
+  /* Bottone nota musicale: esce dalla posizione fissa top-right e rientra
+     nel flusso della riga "Quiet", diventando parte del marchio */
+  .settings-gear{
+    position:static !important;
+    width:28px; height:28px;
+    margin-left:2px;
+  }
+  .settings-gear svg{ width:16px; height:16px; }
+  .sound-panel{ top:60px !important; left:16px !important; right:auto !important; transform-origin: top left; }
+
+  /* Bottone cestino: prende il posto lasciato libero in alto a destra,
+     svuota tutti i widget aperti (esclusa dock e widget dei suoni) */
+  .clear-widgets-btn{
+    display:flex; align-items:center; justify-content:center;
+    position:fixed; top:14px; right:16px; z-index:90;
+    width:40px; height:40px;
+    border-radius:50%;
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(var(--blur));
+    backdrop-filter: blur(var(--blur));
+    border:1px solid var(--glass-border);
+    color:var(--text);
+    cursor:pointer;
+    transition: transform .3s var(--ease), background .2s;
+  }
+  .clear-widgets-btn:hover{ background: var(--glass-strong); }
+  .clear-widgets-btn:active{ transform: scale(0.9); }
+  .clear-widgets-btn svg{ width:18px; height:18px; }
+  .player-wrap{ width:94vw; bottom: calc(var(--dock-h) + 43px); }
+  .player{ padding:22px 18px 20px; gap:14px; }
+  .player-title{ font-size:16px; }
+
+  /* Dock della stessa larghezza del player, sollevata leggermente da
+     bordo/player, icone più grandi con più padding esterno e gap ridotto.
+     Sollevata solo di una manciata di pixel (17px) rispetto alla posizione
+     originale, il minimo indispensabile per fare spazio ai page-dots sotto
+     con lo stesso gap standard (16px) usato altrove nel sito. */
+  .dock-wrap{ width:94vw; bottom:47px; }
+  .dock{ width:100%; justify-content:space-evenly; gap:5px; padding:9px 11px; }
+
+  /* Page-dots: unico punto in cui esistono (solo smartphone), spostati
+     sotto la dock come elemento più in basso di tutta la UI, con lo
+     stesso gap di 16px usato altrove (es. Dock/Widget Principale). */
+  .page-dots{
+    top:auto !important;
+    bottom:8px !important;
+    left:50% !important;
+    transform: translateX(-50%) !important;
+  }
+
+  /* Orologio: posizione FISSA in alto su OGNI schermata, priorità assoluta,
+     non eliminabile, non entra mai nel sistema a pagine/slot. Box leggermente
+     ingrandito e testo leggermente ridotto per più margine e leggibilità,
+     evitando ritagli. */
+  #widget-clock{
+    left:50% !important;
+    right:auto !important;
+    top: 7vh !important;
+    bottom: auto !important;
+    transform: translateX(-50%) scale(0.94) !important;
+    width: 90vw !important;
+    max-width: 390px;
+  }
+  .widget.open#widget-clock{ transform: translateX(-50%) scale(1) !important; }
+  .clock-big{ font-size: 50px; }
+  .clock-date-big{ font-size: 12px; margin-top: 5px; }
+
+  /* Tutti gli altri widget: sempre posizionati SOTTO l'orologio, distribuiti
+     su 3 schermate orizzontali (sinistra=Calendario, centro=Strumenti tempo,
+     destra=Note/Elenco) navigabili con uno swipe. Lo scorrimento orizzontale
+     è gestito dalla custom property --page-offset (impostata via JS). Ogni
+     schermata contiene un solo widget (Strumenti e Note/Elenco sono a loro
+     volta unificati con navigazione interna a frecce), quindi tutti e tre
+     condividono la stessa identica regola di gap/altezza. */
+  #widget-calendar, #widget-tools, #widget-noteslist{
+    left:50% !important;
+    right:auto !important;
+    bottom:auto !important;
+    width:94vw !important;
+    transform: translateX(calc(-50% + var(--page-offset, 0) * 1vw)) translateY(14px) scale(0.96) !important;
+  }
+  #widget-calendar.open, #widget-tools.open, #widget-noteslist.open{
+    transform: translateX(calc(-50% + var(--page-offset, 0) * 1vw)) translateY(0) scale(1) !important;
+  }
+
+  /* Gap standardizzato verso l'Orologio (sopra) e verso il Widget
+     Principale (sotto), identico per Calendario, Strumenti e Note/Elenco */
+  #widget-calendar.mobile-slot-top, #widget-tools.mobile-slot-top, #widget-noteslist.mobile-slot-top{
+    top: calc(7vh + 95px) !important;
+    max-height: calc(93vh - 448px) !important;
+  }
+  /* Annulla il vincolo interno ereditato dal breakpoint tablet (che
+     altrimenti si applicherebbe anche qui, rendendo Strumenti più piccolo
+     del Calendario): stessa area utile per tutti e tre i widget */
+  #widget-tools .widget-body, #widget-noteslist .widget-body{
+    max-height: none !important;
+  }
+
+  /* Sveglia: testo leggermente ridotto per più margine e leggibilità
+     all'interno del box, evitando ritagli */
+  .alarm-time-big{ font-size: 28px; }
+
+  /* Ridondanza esplicita: Note/Elenco identico in larghezza e altezza al
+     Calendario, senza alcuna ambiguità di cascata */
+  #widget-noteslist{
+    width: 94vw !important;
+  }
+  #widget-noteslist.mobile-slot-top{
+    top: calc(7vh + 95px) !important;
+    max-height: calc(93vh - 448px) !important;
+  }
+
+  .widget-head{ padding:13px 16px 4px; }
+  .widget-body{ padding:0 16px 8px; }
+  .cal-day{ font-size:13.5px; }
+
+  .dock-btn{ width:56px; height:56px; }
+  .dock-btn svg{ width:26px; height:26px; }
+}
+
+@media (max-width: 400px){
+  .dock-wrap{ width:94vw; }
+  .dock{ padding:7px 8px; gap:3px; }
+  .dock-btn{ width:50px; height:50px; }
+  .dock-btn svg{ width:23px; height:23px; }
+  .dock-divider{ height:26px; }
+}
+
+/* Scrollbar styling (webkit): più sottile e lunghezza visiva ulteriormente
+   ridotta tramite dissolvenza più marcata alle estremità */
+.widget-body::-webkit-scrollbar, .alarm-list::-webkit-scrollbar { width:4px; }
+.widget-body::-webkit-scrollbar-thumb, .alarm-list::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    rgba(255,255,255,0) 0%,
+    rgba(255,255,255,0.28) 32%,
+    rgba(255,255,255,0.28) 68%,
+    rgba(255,255,255,0) 100%
+  );
+  border-radius:10px;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce){
+  *{ transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
+
+/* Focus visibility */
+button:focus-visible, .sound-panel-item:focus-visible, .dock-btn:focus-visible{
+  outline: 2px solid rgba(255,255,255,0.9);
+  outline-offset: 2px;
+}
