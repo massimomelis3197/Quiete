@@ -45,7 +45,7 @@ const SCENES = [
   },
   {
     id: 'mattina', name: 'Mattina', emoji: '🌅',
-    audio: 'audio/mattina.mp3',
+    audio: 'audio/mattina.ogg',
     bg: 'https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?q=80&w=1920&auto=format&fit=crop'
   },
   {
@@ -140,7 +140,6 @@ const repeatBtn = document.getElementById('repeatBtn');
 const sceneIcon = document.getElementById('sceneIcon');
 const sceneTitle = document.getElementById('sceneTitle');
 const soundPanelList = document.getElementById('soundPanelList');
-const timeElapsed = document.getElementById('timeElapsed');
 const durationValue = document.getElementById('durationValue');
 const sliderTrack = document.getElementById('sliderTrack');
 const sliderFill = document.getElementById('sliderFill');
@@ -151,15 +150,17 @@ const ICON_PAUSE = '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14"
 
 let currentSceneIndex = 0;
 let isPlaying = false;
-let repeatOn = true; // loop del brano audio stesso (di norma i suoni natura sono continui)
-let sessionSeconds = 10 * 60;      // durata scelta dall'utente (default 10 min)
+let repeatOn = false; // il loop parte DISATTIVATO: si attiva solo se l'utente clicca il tasto Ripeti
+const MAX_DURATION_MIN = 180;             // tetto fisso: 180 min per ogni suono
+let sessionSeconds = MAX_DURATION_MIN * 60; // durata massima della sessione (non più selezionabile)
 let elapsedSeconds = 0;
 let mainVolume = 0.85;
 let fadeTimer = null;
 let tickTimer = null;
+let fadeOutStarted = false;      // evita che il fade-out riparta più volte nello stesso avvicinamento al termine
+let pendingPlayingHandler = null; // riferimento all'handler 'playing' in attesa, per poterlo rimuovere se si mette in pausa prima che parta
 const FADE_OUT_SECONDS = 30;
-
-const MIN_MIN = 10, MAX_MIN = 600; // 10 min -> 10 h (600 min)
+const FADE_IN_SECONDS = 8; // dissolvenza in entrata ad ogni avvio della riproduzione
 
 function buildSoundPanel(){
   soundPanelList.innerHTML = '';
@@ -185,11 +186,12 @@ function loadScene(index, autoplayIfWasPlaying){
   setBackground(scene.bg);
 
   audioEl.src = scene.audio;
-  audioEl.loop = true; // il file audio va in loop finché non scade la durata scelta
+  audioEl.loop = true; // il file audio va in loop finché non scade la durata massima
   audioEl.volume = mainVolume;
 
   elapsedSeconds = 0;
-  updateTimeLabels();
+  fadeOutStarted = false;
+  updateProgressBar();
 
   [...soundPanelList.children].forEach((c,i)=> c.classList.toggle('active', i===currentSceneIndex));
 
@@ -203,7 +205,22 @@ function loadScene(index, autoplayIfWasPlaying){
 }
 
 function play(){
-  audioEl.volume = mainVolume;
+  audioEl.volume = 0; // parte silenzioso: il fade-in porta il volume al livello target
+  clearFade();
+
+  // Il fade-in si aggancia all'evento 'playing', che scatta quando la
+  // riproduzione è DAVVERO iniziata (non al semplice click su Play). Così
+  // la dissolvenza è sempre sincronizzata con il suono reale, anche in
+  // presenza di un piccolo ritardo di buffering.
+  if (pendingPlayingHandler){
+    audioEl.removeEventListener('playing', pendingPlayingHandler);
+  }
+  pendingPlayingHandler = () => {
+    pendingPlayingHandler = null;
+    startFadeIn();
+  };
+  audioEl.addEventListener('playing', pendingPlayingHandler, { once:true });
+
   audioEl.play().catch(()=>{ /* richiede interazione utente su alcuni browser: già garantita dal click */ });
   isPlaying = true;
   playIconWrap.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor">${ICON_PAUSE}</svg>`;
@@ -211,6 +228,11 @@ function play(){
 }
 
 function pause(){
+  clearFade(); // interrompe un eventuale fade in corso, il volume resta dov'è
+  if (pendingPlayingHandler){
+    audioEl.removeEventListener('playing', pendingPlayingHandler);
+    pendingPlayingHandler = null;
+  }
   audioEl.pause();
   isPlaying = false;
   playIconWrap.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor">${ICON_PLAY}</svg>`;
@@ -225,47 +247,62 @@ function startTick(){
   stopTick();
   tickTimer = setInterval(()=>{
     elapsedSeconds += 1;
-    updateTimeLabels();
+    updateProgressBar();
 
     const remaining = sessionSeconds - elapsedSeconds;
 
-    // Avvio fade-out negli ultimi FADE_OUT_SECONDS
-    if (remaining === FADE_OUT_SECONDS){
-      startFadeOut();
+    // Avvio fade-out quando si entra negli ultimi FADE_OUT_SECONDS. Il flag
+    // fadeOutStarted evita ripartenze multiple e viene resettato se l'utente
+    // trascina la manovella indietro, uscendo dalla finestra finale.
+    if (remaining <= FADE_OUT_SECONDS && remaining > 0){
+      if (!fadeOutStarted){
+        fadeOutStarted = true;
+        startFadeOut();
+      }
+    } else if (remaining > FADE_OUT_SECONDS && fadeOutStarted){
+      fadeOutStarted = false;
+      clearFade();
+      audioEl.volume = mainVolume; // si è usciti dalla zona finale: volume ripristinato
     }
+
     if (remaining <= 0){
       pause();
       audioEl.currentTime = 0;
-      audioEl.volume = mainVolume;
+      elapsedSeconds = 0;
+      fadeOutStarted = false;
+      updateProgressBar();
       if (repeatOn){
-        elapsedSeconds = 0;
-        updateTimeLabels();
-        play();
-      } else {
-        elapsedSeconds = 0;
-        updateTimeLabels();
+        play(); // riparte da capo: nuovo fade-in di 8s
       }
     }
   }, 1000);
 }
 function stopTick(){ clearInterval(tickTimer); }
 
-function startFadeOut(){
+/* Dissolvenza generica basata sul tempo reale trascorso (non su un conteggio
+   di step): elimina qualunque deriva del timer e garantisce che la rampa
+   duri esattamente durationSec secondi indipendentemente dal carico del
+   browser. Usata sia per il fade-in che per il fade-out. */
+function fadeVolume(fromVol, toVol, durationSec){
   clearFade();
-  const steps = 32;
-  const stepTime = (FADE_OUT_SECONDS*1000) / steps;
-  let i = 0;
-  const startVol = audioEl.volume;
+  const startTime = performance.now();
+  const durationMs = durationSec * 1000;
   fadeTimer = setInterval(()=>{
-    i++;
-    const v = Math.max(0, startVol * (1 - i/steps));
-    audioEl.volume = v;
-    if (i >= steps) clearFade();
-  }, stepTime);
+    const t = Math.min(1, (performance.now() - startTime) / durationMs);
+    audioEl.volume = fromVol + (toVol - fromVol) * t;
+    if (t >= 1) clearFade();
+  }, 100);
+}
+function startFadeOut(){
+  fadeVolume(audioEl.volume, 0, FADE_OUT_SECONDS);
+}
+/* Dissolvenza in entrata: dal silenzio al volume principale in FADE_IN_SECONDS.
+   Viene avviata da play() solo quando l'audio ha davvero iniziato a suonare. */
+function startFadeIn(){
+  fadeVolume(0, mainVolume, FADE_IN_SECONDS);
 }
 function clearFade(){
   if (fadeTimer){ clearInterval(fadeTimer); fadeTimer = null; }
-  audioEl.volume = mainVolume;
 }
 
 function fmt(sec){
@@ -277,58 +314,69 @@ function fmt(sec){
   return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
 
-function updateTimeLabels(){
-  timeElapsed.textContent = fmt(elapsedSeconds);
-}
-
-/* --- Duration slider (10 min -> 10 h), drag + click + tastiera --- */
-function minutesToPercent(min){
-  return (min - MIN_MIN) / (MAX_MIN - MIN_MIN) * 100;
-}
-function percentToMinutes(pct){
-  const raw = MIN_MIN + (pct/100) * (MAX_MIN - MIN_MIN);
-  return Math.round(raw / 5) * 5; // step di 5 minuti
-}
-function formatDurationLabel(min){
-  if (min < 60) return `${min} min`;
-  const h = Math.floor(min/60);
-  const m = min % 60;
-  return m === 0 ? `${h} h` : `${h} h ${m}m`;
-}
-function setDurationMinutes(min, opts){
-  min = Math.min(MAX_MIN, Math.max(MIN_MIN, min));
-  sessionSeconds = min * 60;
-  const pct = minutesToPercent(min);
+/* --- Barra di progresso della sessione (sola lettura) ---
+   Non più selezionabile dall'utente: riflette semplicemente elapsedSeconds
+   rispetto al tetto fisso di 180 min, avanzando da sola con la riproduzione.
+   Mostra anche il tempo trascorso (sostituisce il vecchio contatore sotto
+   il nome del suono, ora rimosso). */
+function updateProgressBar(){
+  const pct = Math.min(100, (elapsedSeconds / sessionSeconds) * 100);
   sliderFill.style.width = pct + '%';
   sliderHandle.style.left = pct + '%';
-  sliderHandle.setAttribute('aria-valuenow', min);
-  durationValue.textContent = formatDurationLabel(min);
-  if (!opts || !opts.silent) updateTimeLabels();
+  sliderHandle.setAttribute('aria-valuenow', Math.round(elapsedSeconds));
+  durationValue.textContent = fmt(elapsedSeconds);
 }
 
-let dragging = false;
-function handleFromClientX(clientX){
+/* --- Manovella tonda: trascinamento per andare avanti/indietro nella sessione ---
+   Sposta solo elapsedSeconds (il timer virtuale di sessione/fade-out), non
+   il punto di lettura del file audio: il suono continua a scorrere in loop
+   nativo (audio.loop), la barra rappresenta il tempo di sessione trascorso. */
+let seeking = false;
+
+function seekFromClientX(clientX){
   const rect = sliderTrack.getBoundingClientRect();
-  const pct = Math.min(100, Math.max(0, (clientX - rect.left)/rect.width*100));
-  setDurationMinutes(percentToMinutes(pct));
+  const pct = Math.min(100, Math.max(0, (clientX - rect.left) / rect.width * 100));
+  elapsedSeconds = Math.round((pct / 100) * sessionSeconds);
+  updateProgressBar();
 }
+
 sliderHandle.addEventListener('pointerdown', (e)=>{
-  dragging = true;
+  seeking = true;
+  sliderTrack.classList.add('seeking');
   sliderHandle.setPointerCapture(e.pointerId);
+  e.preventDefault();
 });
 sliderHandle.addEventListener('pointermove', (e)=>{
-  if (!dragging) return;
-  handleFromClientX(e.clientX);
+  if (!seeking) return;
+  seekFromClientX(e.clientX);
 });
-sliderHandle.addEventListener('pointerup', ()=> dragging = false);
+function endSeek(){
+  if (!seeking) return;
+  seeking = false;
+  sliderTrack.classList.remove('seeking');
+}
+sliderHandle.addEventListener('pointerup', endSeek);
+sliderHandle.addEventListener('pointercancel', endSeek);
+
+// Click diretto sulla barra (fuori dalla maniglia): salta subito a quel punto
 sliderTrack.addEventListener('click', (e)=>{
   if (e.target === sliderHandle) return;
-  handleFromClientX(e.clientX);
+  seekFromClientX(e.clientX);
 });
+
+// Frecce da tastiera quando la maniglia ha il focus: ±30 secondi
 sliderHandle.addEventListener('keydown', (e)=>{
-  const current = parseInt(sliderHandle.getAttribute('aria-valuenow'),10);
-  if (e.key === 'ArrowRight' || e.key === 'ArrowUp'){ setDurationMinutes(current+5); e.preventDefault(); }
-  if (e.key === 'ArrowLeft' || e.key === 'ArrowDown'){ setDurationMinutes(current-5); e.preventDefault(); }
+  const step = 30;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowUp'){
+    elapsedSeconds = Math.min(sessionSeconds, elapsedSeconds + step);
+    updateProgressBar();
+    e.preventDefault();
+  }
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowDown'){
+    elapsedSeconds = Math.max(0, elapsedSeconds - step);
+    updateProgressBar();
+    e.preventDefault();
+  }
 });
 
 playBtn.addEventListener('click', togglePlay);
@@ -362,9 +410,9 @@ document.addEventListener('click', (e)=>{
 
 /* init player */
 buildSoundPanel();
-setDurationMinutes(10, {silent:true});
+updateProgressBar();
 loadScene(0, false);
-repeatBtn.classList.add('active');
+// Nessuna attivazione automatica del Ripeti: badge "1" visibile solo dopo il click dell'utente
 // primo sfondo mostrato subito senza crossfade
 bgA.style.backgroundImage = `url('${SCENES[0].bg}')`;
 

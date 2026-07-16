@@ -17,7 +17,7 @@
 <!-- ============ SCHERMATA INIZIALE ============ -->
 <div class="intro-screen" id="introScreen">
   <div class="intro-content">
-    <h1 class="intro-h1">Benvenuto a Quiet</h1>
+    <h1 class="intro-h1">Benvenuto ad Armony</h1>
     <h2 class="intro-h2">Scegli il tuo suono preferito</h2>
     <div class="intro-sounds" id="introSounds"></div>
   </div>
@@ -69,9 +69,6 @@
         </div>
         <div class="player-info">
           <div class="player-title" id="sceneTitle">Pioggia</div>
-          <div class="player-sub">
-            <span id="timeElapsed">00:00</span>
-          </div>
         </div>
         <div class="player-controls-inline">
           <button class="ctrl-btn play" id="playBtn" aria-label="Play/Pausa">
@@ -79,20 +76,27 @@
           </button>
           <button class="ctrl-btn small repeat" id="repeatBtn" title="Ripeti" aria-label="Ripeti">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+            <!-- Badge "1" visibile solo quando il loop è attivo (vedi .ctrl-btn.repeat.active .repeat-badge in CSS) -->
+            <span class="repeat-badge" id="repeatBadge">1</span>
           </button>
         </div>
       </div>
 
       <div class="duration-row">
         <div class="duration-labels">
-          <span>Durata</span>
-          <span class="duration-value" id="durationValue">10 min</span>
-          <span>10 h</span>
+          <span class="duration-value" id="durationValue">00:00</span>
+          <span>180 min</span>
         </div>
+        <!-- Barra di sola visualizzazione: avanza automaticamente con la riproduzione
+             fino al tetto massimo di 180 min per ogni suono. Non più trascinabile. -->
+        <!-- Barra interattiva: avanza da sola con la riproduzione ma può anche
+             essere trascinata (manovella tonda) per saltare avanti/indietro
+             nella sessione fino al tetto di 180 min. -->
         <div class="slider-track" id="sliderTrack">
           <div class="slider-fill" id="sliderFill"></div>
           <div class="slider-handle" id="sliderHandle" tabindex="0" role="slider"
-               aria-valuemin="10" aria-valuemax="600" aria-valuenow="10"></div>
+               aria-valuemin="0" aria-valuemax="10800" aria-valuenow="0"
+               aria-label="Posizione nella sessione"></div>
         </div>
       </div>
     </div>
