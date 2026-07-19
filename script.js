@@ -75,7 +75,7 @@ const SCENES = [
   },
   {
     id: 'mattina', name: 'Mattina', emoji: '🌅',
-    audio: 'audio/audio3/mattina.ogg',
+    audio: 'audio/audio3/mattina.mp3',
     bg: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=1920&auto=format&fit=crop'
   },
   {
