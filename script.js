@@ -41,7 +41,7 @@ const SCENES = [
   {
     id: 'caffetteria', name: 'Caffetteria', emoji: '☕',
     audio: 'audio/audio1/caffetteria.mp3',
-    bg: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?q=80&w=1920&auto=format&fit=crop'
+    bg: 'https://plus.unsplash.com/premium_photo-1670984940156-c7f833fe8397?q=80&w=1920&auto=format&fit=crop'
   },
   {
     id: 'caminetto', name: 'Caminetto acceso', emoji: '🔥',
@@ -51,12 +51,12 @@ const SCENES = [
   {
     id: 'cascata', name: 'Cascata', emoji: '💦',
     audio: 'audio/audio2/cascata.mp3',
-    bg: 'https://images.unsplash.com/photo-1475738972911-6bb1c3f5b0cd?q=80&w=1920&auto=format&fit=crop'
+    bg: 'https://plus.unsplash.com/premium_photo-1675448891094-0f3acc556fdb?q=80&w=1920&auto=format&fit=crop'
   },
   {
     id: 'fiume', name: 'Fiume', emoji: '🌊',
     audio: 'audio/audio2/fiume.mp3',
-    bg: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?q=80&w=1920&auto=format&fit=crop'
+    bg: 'https://images.unsplash.com/photo-1455577380025-4321f1e1dca7?q=80&w=1920&auto=format&fit=crop'
   },
   {
     id: 'fondale', name: 'Fondale marino', emoji: '🐠',
@@ -66,7 +66,7 @@ const SCENES = [
   {
     id: 'jbar', name: 'Jazz bar', emoji: '🎷',
     audio: 'audio/audio3/jbar.mp3',
-    bg: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?q=80&w=1920&auto=format&fit=crop'
+    bg: 'https://images.unsplash.com/photo-1581717070062-e388aba6f27a?q=80&w=1920&auto=format&fit=crop'
   },
   {
     id: 'mare', name: 'Mare calmo', emoji: '🌊',
@@ -101,7 +101,7 @@ const SCENES = [
   {
     id: 'sera', name: 'Notte', emoji: '🌆',
     audio: 'audio/audio4/notte.mp3',
-    bg: 'https://images.unsplash.com/photo-1507400492013-162706c8c05e?q=80&w=1920&auto=format&fit=crop'
+    bg: 'https://images.unsplash.com/photo-1574610758891-5b809b6e6e2e?q=80&w=1920&auto=format&fit=crop'
   },
   {
     id: 'temporale', name: 'Temporale', emoji: '⛈️',
