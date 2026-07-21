@@ -191,6 +191,11 @@ html,body{
 }
 
 /* ================= TOP-RIGHT: settings gear + sound panel ================= */
+.settings-gear,
+.clear-widgets-btn{
+  -webkit-appearance: none;
+  appearance: none;
+}
 .settings-gear{
   position:fixed; top:18px; right:26px; z-index:90;
   width:40px; height:40px;
