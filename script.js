@@ -41,7 +41,7 @@ const SCENES = [
   {
     id: 'caffetteria', name: 'Caffetteria', emoji: '☕',
     audio: 'audio/audio1/caffetteria.mp3',
-    bg: 'https://images.unsplash.com/photo-1613274554329-70f997f5789f?q=80&w=1920&auto=format&fit=crop'
+    bg: 'https://images.unsplash.com/photo-1606836576983-8b458e75221d?q=80&w=1920&auto=format&fit=crop'
   },
   {
     id: 'caminetto', name: 'Caminetto acceso', emoji: '🔥',
@@ -87,7 +87,7 @@ const SCENES = [
   {
     id: 'pioggia', name: 'Pioggia', emoji: '🌧️',
     audio: 'audio/audio4/pioggia.mp3',
-    bg: 'https://images.unsplash.com/photo-1496034663057-6245f11be793?q=80&w=1920&auto=format&fit=crop'
+    bg: 'https://images.unsplash.com/photo-1534274988757-a28bf1a57c17?q=80&w=1920&auto=format&fit=crop'
   },
   {
     id: 'ruscello', name: 'Ruscello', emoji: '💧',
