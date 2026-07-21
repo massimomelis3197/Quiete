@@ -206,7 +206,8 @@ html,body{
 }
 .settings-gear:hover{ background: var(--glass-strong); }
 .settings-gear svg{ width:19px; height:19px; }
-.settings-gear.open{ transform: rotate(75deg); background: var(--glass-strong); }
+.settings-gear.open{ transform: rotate(75deg); background: var(--glass-strong);
+                       backdrop-filter: blur(var(--blur));}
 
 /* Bottone "svuota widget": su desktop/tablet sta subito a sinistra della
    rotellina cambia-suono, stesso stile e stessa dimensione */
