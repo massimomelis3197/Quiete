@@ -116,6 +116,44 @@ const SCENES = [
   }
 ];
 
+/* ---------------- 1b. PERSISTENZA DATI (localStorage) ----------------
+   Salvataggio automatico e silenzioso: ogni modifica a note, elenco,
+   eventi calendario, sveglia, timer e suono preferito viene scritta
+   subito in localStorage. Così i dati restano disponibili anche dopo
+   aver chiuso la scheda/il browser, senza che l'utente debba fare nulla.
+   Un piccolo indicatore "Salvato" dà un feedback visivo non invasivo. */
+const STORAGE_KEY = 'quiet_app_state_v1';
+
+function loadStoredState(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch(e){
+    return {}; // localStorage non disponibile (es. modalità privata): si prosegue senza persistenza
+  }
+}
+
+const autosaveBadge = document.getElementById('autosaveBadge');
+let autosaveBadgeTimer = null;
+function flashAutosaveBadge(){
+  if (!autosaveBadge) return;
+  autosaveBadge.classList.add('show');
+  clearTimeout(autosaveBadgeTimer);
+  autosaveBadgeTimer = setTimeout(()=> autosaveBadge.classList.remove('show'), 1300);
+}
+
+function saveStoredState(partial){
+  try {
+    const current = loadStoredState();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...current, ...partial }));
+    flashAutosaveBadge();
+  } catch(e){
+    /* storage pieno o non disponibile: si ignora silenziosamente, l'app resta comunque utilizzabile */
+  }
+}
+
+const STORED = loadStoredState();
+
 /* ---------------- 2. BACKGROUND CROSSFADE ---------------- */
 const bgA = document.getElementById('bgA');
 const bgB = document.getElementById('bgB');
@@ -124,7 +162,8 @@ let bgToggle = true; // true -> mostra A come attivo
 function setBackground(url){
   const showing = bgToggle ? bgA : bgB;
   const hidden  = bgToggle ? bgB : bgA;
-  hidden.style.backgroundImage = `url('${url}')`;
+  const hiddenInner = hidden.querySelector('.bg-layer-inner');
+  hiddenInner.style.backgroundImage = `url('${url}')`;
   // forza reflow poi fade
   requestAnimationFrame(()=>{
     hidden.style.opacity = '1';
@@ -132,6 +171,145 @@ function setBackground(url){
     bgToggle = !bgToggle;
   });
 }
+
+/* ---------------- 2b. PARTICELLE AMBIENTALI (canvas) ----------------
+   Un piccolo sistema a particelle disegnato su canvas, con un "tipo" di
+   effetto diverso in base al suono selezionato (pioggia, neve, braci del
+   camino, bolle sott'acqua, vento, oppure un pulviscolo/lucciole soffuso
+   di default per le altre ambientazioni). */
+const REDUCE_MOTION = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+const particleCanvas = document.getElementById('bgParticles');
+const pctx = particleCanvas.getContext('2d');
+let particles = [];
+let currentEffect = 'dust';
+
+function resizeParticleCanvas(){
+  const dpr = window.devicePixelRatio || 1;
+  particleCanvas.width = window.innerWidth * dpr;
+  particleCanvas.height = window.innerHeight * dpr;
+  particleCanvas.style.width = window.innerWidth + 'px';
+  particleCanvas.style.height = window.innerHeight + 'px';
+  pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resizeParticleCanvas);
+resizeParticleCanvas();
+
+const EFFECT_MAP = {
+  pioggia: 'rain', temporale: 'rain',
+  neve: 'snow',
+  caminetto: 'embers',
+  fondale: 'bubbles',
+  vento: 'wind',
+  ufficio: 'none',
+  mercato: 'none',
+  biblioteca: 'none',
+  mattina: 'none',
+  caffetteria: 'none',
+  mare: 'none'
+  // tutte le altre scene usano l'effetto di default 'dust' (pulviscolo/lucciole)
+};
+
+function rand(a, b){ return a + Math.random() * (b - a); }
+
+function makeParticle(effect, w, h, initial){
+  switch(effect){
+    case 'rain':
+      return { x: rand(0, w), y: initial ? rand(0, h) : -20, len: rand(14, 28), speed: rand(9, 15), drift: rand(2, 3.5), alpha: rand(0.16, 0.38) };
+    case 'snow':
+      return { x: rand(0, w), y: initial ? rand(0, h) : -10, r: rand(1.4, 3.2), speed: rand(0.5, 1.4), sway: rand(0.4, 1.2), swaySeed: rand(0, Math.PI * 2), alpha: rand(0.5, 0.9) };
+    case 'embers':
+      return { x: rand(w * 0.2, w * 0.8), y: initial ? rand(h * 0.4, h) : h + 10, r: rand(1.2, 2.6), speed: rand(0.5, 1.3), drift: rand(-0.4, 0.4), alpha: rand(0.55, 1), life: rand(0.7, 1) };
+    case 'bubbles':
+      return { x: rand(0, w), y: initial ? rand(0, h) : h + 10, r: rand(2, 6), speed: rand(0.5, 1.4), alpha: rand(0.22, 0.5) };
+    case 'wind':
+      return { x: initial ? rand(0, w) : -60, y: rand(0, h), len: rand(40, 110), speed: rand(3, 6), alpha: rand(0.08, 0.2) };
+    default: // dust / lucciole soffuse
+      return { x: rand(0, w), y: rand(0, h), r: rand(1, 2.3), speed: rand(0.15, 0.45), drift: rand(-0.2, 0.2), alpha: rand(0.15, 0.42), pulse: rand(0, Math.PI * 2) };
+  }
+}
+
+function setParticleEffect(effect){
+  currentEffect = effect;
+  const w = window.innerWidth, h = window.innerHeight;
+  const baseCounts = { rain: 90, snow: 70, embers: 40, bubbles: 32, wind: 14, dust: 42, none: 0 };
+  const n = REDUCE_MOTION ? 0 : (baseCounts[effect] ?? 42);
+  particles = Array.from({ length: n }, () => makeParticle(effect, w, h, true));
+}
+
+function stepParticles(){
+  const w = window.innerWidth, h = window.innerHeight;
+  pctx.clearRect(0, 0, w, h);
+  pctx.save();
+  pctx.strokeStyle = '#ffffff';
+  pctx.fillStyle = '#ffffff';
+
+  particles.forEach((p, i) => {
+    switch (currentEffect){
+      case 'rain':
+        pctx.globalAlpha = p.alpha;
+        pctx.lineWidth = 1.2;
+        pctx.beginPath();
+        pctx.moveTo(p.x, p.y);
+        pctx.lineTo(p.x - p.drift * 1.4, p.y + p.len);
+        pctx.stroke();
+        p.y += p.speed * 4; p.x -= p.drift * 0.6;
+        if (p.y > h) particles[i] = makeParticle('rain', w, h, false);
+        break;
+      case 'snow':
+        p.swaySeed += 0.02;
+        p.x += Math.sin(p.swaySeed) * p.sway * 0.3;
+        p.y += p.speed * 1.6;
+        pctx.globalAlpha = p.alpha;
+        pctx.beginPath();
+        pctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        pctx.fill();
+        if (p.y > h) particles[i] = makeParticle('snow', w, h, false);
+        break;
+      case 'embers':
+        p.y -= p.speed * 1.4; p.x += p.drift * 0.6; p.life -= 0.004;
+        pctx.globalAlpha = Math.max(0, p.alpha * p.life);
+        pctx.fillStyle = 'rgba(255,150,60,1)';
+        pctx.beginPath();
+        pctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        pctx.fill();
+        pctx.fillStyle = '#ffffff';
+        if (p.y < h * 0.1 || p.life <= 0) particles[i] = makeParticle('embers', w, h, false);
+        break;
+      case 'bubbles':
+        p.y -= p.speed * 1.2; p.x += Math.sin(p.y * 0.02) * 0.4;
+        pctx.globalAlpha = p.alpha;
+        pctx.lineWidth = 1;
+        pctx.beginPath();
+        pctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        pctx.stroke();
+        if (p.y < -10) particles[i] = makeParticle('bubbles', w, h, false);
+        break;
+      case 'wind':
+        p.x += p.speed * 1.6;
+        pctx.globalAlpha = p.alpha;
+        pctx.lineWidth = 1;
+        pctx.beginPath();
+        pctx.moveTo(p.x, p.y);
+        pctx.lineTo(p.x + p.len, p.y + p.len * 0.06);
+        pctx.stroke();
+        if (p.x > w + 60) particles[i] = makeParticle('wind', w, h, false);
+        break;
+      default: // dust
+        p.pulse += 0.015;
+        p.x += p.drift * 0.3; p.y -= p.speed * 0.4;
+        const flick = 0.6 + Math.sin(p.pulse) * 0.4;
+        pctx.globalAlpha = p.alpha * flick;
+        pctx.beginPath();
+        pctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        pctx.fill();
+        if (p.y < -10 || p.x < -10 || p.x > w + 10) particles[i] = makeParticle('dust', w, h, false);
+    }
+  });
+  pctx.restore();
+  requestAnimationFrame(stepParticles);
+}
+setParticleEffect('dust');
+stepParticles();
 
 /* ---------------- 3. AUDIO PLAYER (file leggero da 10 min + loop con crossfade) ----------------
    Ogni suono ora punta a un file leggero di ~10 minuti (al posto del vecchio
@@ -161,9 +339,9 @@ const sliderHandle = document.getElementById('sliderHandle');
 const ICON_PLAY = '<path d="M8 5v14l11-7z"/>';
 const ICON_PAUSE = '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>';
 
-let currentSceneIndex = 0;
+let currentSceneIndex = (typeof STORED.currentSceneIndex === 'number' && STORED.currentSceneIndex >= 0) ? STORED.currentSceneIndex : 0;
 let isPlaying = false;
-let repeatOn = false; // il loop parte DISATTIVATO: si attiva solo se l'utente clicca il tasto Ripeti
+let repeatOn = !!STORED.repeatOn; // ripristinato se l'utente l'aveva attivato nell'ultima sessione
 const MAX_DURATION_MIN = 180;             // tetto fisso: 180 min per ogni suono
 let sessionSeconds = MAX_DURATION_MIN * 60; // durata massima della sessione (non più selezionabile)
 let elapsedSeconds = 0;
@@ -209,6 +387,8 @@ function loadScene(index, autoplayIfWasPlaying){
 
   sceneTitle.textContent = scene.name;
   setBackground(scene.bg);
+  setParticleEffect(EFFECT_MAP[scene.id] || 'dust');
+  saveStoredState({ currentSceneIndex });
 
   // Entrambi i buffer puntano allo stesso file breve (~10 min): il secondo
   // resta pronto, in pausa e a volume 0, finché non serve per la
@@ -482,6 +662,7 @@ playBtn.addEventListener('click', togglePlay);
 repeatBtn.addEventListener('click', ()=>{
   repeatOn = !repeatOn;
   repeatBtn.classList.toggle('active', repeatOn);
+  saveStoredState({ repeatOn });
 });
 
 /* --- Rotellina impostazioni: apre/chiude il pannello verticale dei suoni --- */
@@ -510,13 +691,16 @@ document.addEventListener('click', (e)=>{
 /* init player */
 buildSoundPanel();
 updateProgressBar();
-loadScene(0, false);
-// Nessuna attivazione automatica del Ripeti: badge "1" visibile solo dopo il click dell'utente
-// primo sfondo mostrato subito senza crossfade
-bgA.style.backgroundImage = `url('${SCENES[0].bg}')`;
+repeatBtn.classList.toggle('active', repeatOn); // riflette lo stato ripristinato da localStorage
+loadScene(currentSceneIndex, false);
+// primo sfondo mostrato subito senza crossfade (usa il suono ripristinato, se presente)
+bgA.querySelector('.bg-layer-inner').style.backgroundImage = `url('${SCENES[currentSceneIndex].bg}')`;
+setParticleEffect(EFFECT_MAP[SCENES[currentSceneIndex].id] || 'dust');
 
 /* --- Schermata iniziale: scelta del suono (non avviato automaticamente,
-       sarà l'utente a premere play nel player) --- */
+       sarà l'utente a premere play nel player). Se esiste già un suono
+       preferito salvato da una sessione precedente, la si salta a favore
+       dell'esperienza già personalizzata. --- */
 const introScreen = document.getElementById('introScreen');
 const introSounds = document.getElementById('introSounds');
 SCENES.forEach((s, i)=>{
@@ -529,6 +713,9 @@ SCENES.forEach((s, i)=>{
   });
   introSounds.appendChild(btn);
 });
+if (typeof STORED.currentSceneIndex === 'number'){
+  introScreen.classList.add('intro-hidden');
+}
 
 /* ---------------- 4. DOCK + WIDGETS ---------------- */
 const widgets = {
@@ -894,12 +1081,13 @@ const alarmTimeInput = document.getElementById('alarmTimeInput');
 const alarmStartBtn = document.getElementById('alarmStartBtn');
 const alarmClearBtn = document.getElementById('alarmClearBtn');
 const alarmStatus = document.getElementById('alarmStatus');
-let activeAlarm = null; // {time:'HH:MM'} oppure null
+let activeAlarm = STORED.activeAlarm || null; // {time:'HH:MM'} oppure null
 let firedToday = new Set();
 
 function renderAlarmStatus(){
   if (activeAlarm){
     alarmStatus.textContent = `Sveglia impostata per le ${activeAlarm.time}`;
+    alarmTimeInput.value = activeAlarm.time;
   } else {
     alarmStatus.textContent = 'Nessuna sveglia impostata';
   }
@@ -908,10 +1096,12 @@ alarmStartBtn.addEventListener('click', ()=>{
   if (!alarmTimeInput.value) return;
   activeAlarm = { time: alarmTimeInput.value };
   renderAlarmStatus();
+  saveStoredState({ activeAlarm });
 });
 alarmClearBtn.addEventListener('click', ()=>{
   activeAlarm = null;
   renderAlarmStatus();
+  saveStoredState({ activeAlarm });
 });
 renderAlarmStatus();
 
@@ -948,7 +1138,7 @@ const timerResetBtn = document.getElementById('timerResetBtn');
 const timerMinusBtn = document.getElementById('timerMinus');
 const timerPlusBtn = document.getElementById('timerPlus');
 
-let timerDuration = 5 * 60; // durata impostata (secondi), default 5 min
+let timerDuration = STORED.timerDuration || 5 * 60; // durata impostata (secondi), default 5 min (ripristinata se salvata)
 let timerRemaining = timerDuration;
 let timerRunning = false;
 let timerInterval = null;
@@ -969,6 +1159,7 @@ function adjustTimer(deltaMin){
   timerRemaining = timerDuration;
   timerStatus.textContent = 'Pronto';
   renderTimer();
+  saveStoredState({ timerDuration });
 }
 timerMinusBtn.addEventListener('click', ()=> adjustTimer(-1));
 timerPlusBtn.addEventListener('click', ()=> adjustTimer(1));
@@ -1020,7 +1211,7 @@ renderTimer();
 const noteInput = document.getElementById('noteInput');
 const noteSaveBtn = document.getElementById('noteSaveBtn');
 const notesList = document.getElementById('notesList');
-let notes = []; // {id, text, time}
+let notes = Array.isArray(STORED.notes) ? STORED.notes : []; // {id, text, time}
 
 function renderNotes(){
   notesList.innerHTML = '';
@@ -1053,6 +1244,7 @@ function renderNotes(){
     b.addEventListener('click', ()=>{
       notes = notes.filter(n=>n.id !== b.dataset.id);
       renderNotes();
+      saveStoredState({ notes });
     });
   });
 }
@@ -1069,6 +1261,7 @@ function saveNote(){
   notes.push({ id:'note_'+Date.now(), text, time });
   noteInput.value = '';
   renderNotes();
+  saveStoredState({ notes });
 }
 noteSaveBtn.addEventListener('click', saveNote);
 noteInput.addEventListener('keydown', (e)=>{
@@ -1080,7 +1273,7 @@ renderNotes();
 const listInput = document.getElementById('listInput');
 const listSaveBtn = document.getElementById('listSaveBtn');
 const listItemsEl = document.getElementById('listItems');
-let listItems = []; // {id, text, done}
+let listItems = Array.isArray(STORED.listItems) ? STORED.listItems : []; // {id, text, done}
 
 function renderListItems(){
   listItemsEl.innerHTML = '';
@@ -1098,6 +1291,7 @@ function renderListItems(){
     check.addEventListener('change', ()=>{
       item.done = check.checked;
       renderListItems();
+      saveStoredState({ listItems });
     });
 
     const text = document.createElement('span');
@@ -1109,6 +1303,7 @@ function renderListItems(){
     del.addEventListener('click', ()=>{
       listItems = listItems.filter(i=>i.id !== item.id);
       renderListItems();
+      saveStoredState({ listItems });
     });
 
     row.appendChild(check);
@@ -1123,6 +1318,7 @@ function saveListItem(){
   listItems.push({ id:'li_'+Date.now(), text, done:false });
   listInput.value = '';
   renderListItems();
+  saveStoredState({ listItems });
 }
 listSaveBtn.addEventListener('click', saveListItem);
 listInput.addEventListener('keydown', (e)=>{
@@ -1136,7 +1332,7 @@ const calGrid = document.getElementById('calGrid');
 const calPrev = document.getElementById('calPrev');
 const calNext = document.getElementById('calNext');
 let calViewDate = new Date();
-let calendarEvents = {}; // { 'YYYY-MM-DD': 'testo evento' }
+let calendarEvents = (STORED.calendarEvents && typeof STORED.calendarEvents === 'object') ? STORED.calendarEvents : {}; // { 'YYYY-MM-DD': 'testo evento' }
 
 function dateKey(year, month, day){
   return `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
@@ -1150,12 +1346,14 @@ function handleDayClick(year, month, day){
     if (remove){
       delete calendarEvents[key];
       renderCalendar();
+      saveStoredState({ calendarEvents });
     }
   } else {
     const text = prompt(`Aggiungi un evento per il ${day}/${month+1}/${year}:`);
     if (text && text.trim()){
       calendarEvents[key] = text.trim();
       renderCalendar();
+      saveStoredState({ calendarEvents });
     }
   }
 }
