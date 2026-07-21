@@ -197,7 +197,7 @@ html,body{
   border-radius:50%;
   background: none;
   isolation: isolate;
-  border:1px solid var(--glass-border);
+  border:2px solid var(--glass-border);
   color:var(--text);
   display:flex; align-items:center; justify-content:center;
   cursor:pointer;
@@ -214,7 +214,7 @@ html,body{
 }
 .settings-gear:hover::before,
 .settings-gear.open::before{ background: var(--glass-strong); }
-.settings-gear.open{ transform: rotate(75deg); }
+.settings-gear.open{ transform: rotate(45deg); }
 .settings-gear svg{ width:19px; height:19px; }
 
 /* Bottone "svuota widget": su desktop/tablet sta subito a sinistra della
@@ -226,7 +226,7 @@ html,body{
   border-radius:50%;
   background: none;
   isolation: isolate;
-  border:1px solid var(--glass-border);
+  border:2px solid var(--glass-border);
   color:var(--text);
   cursor:pointer;
   transition: background .2s, transform .2s;
