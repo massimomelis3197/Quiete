@@ -82,7 +82,7 @@ const SCENES = [
   {
     id: 'neve', name: 'Bufera di neve', emoji: '❄️',
     audio: 'audio/audio4/neve.mp3',
-    bg: 'https://plus.unsplash.com/premium_photo-1675715923850-b5be1d5d71a7?q=80&w=1920&auto=format&fit=crop'
+    bg: 'https://images.unsplash.com/photo-1491002052546-bf38f186af56?q=80&w=1920&auto=format&fit=crop'
   },
   {
     id: 'pioggia', name: 'Pioggia', emoji: '🌧️',
