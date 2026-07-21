@@ -116,20 +116,22 @@ const SCENES = [
   }
 ];
 
-/* ---------------- 1b. PERSISTENZA DATI (localStorage) ----------------
+/* ---------------- 1b. PERSISTENZA DATI (sessionStorage) ----------------
    Salvataggio automatico e silenzioso: ogni modifica a note, elenco,
    eventi calendario, sveglia, timer e suono preferito viene scritta
-   subito in localStorage. Così i dati restano disponibili anche dopo
-   aver chiuso la scheda/il browser, senza che l'utente debba fare nulla.
+   subito in sessionStorage. I dati restano disponibili finché il
+   browser resta aperto (anche ricaricando la pagina), ma vengono
+   azzerati automaticamente alla chiusura del browser/scheda, dando
+   un reset pulito a ogni nuova sessione.
    Un piccolo indicatore "Salvato" dà un feedback visivo non invasivo. */
 const STORAGE_KEY = 'quiet_app_state_v1';
 
 function loadStoredState(){
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
   } catch(e){
-    return {}; // localStorage non disponibile (es. modalità privata): si prosegue senza persistenza
+    return {}; // sessionStorage non disponibile (es. modalità privata): si prosegue senza persistenza
   }
 }
 
@@ -145,7 +147,7 @@ function flashAutosaveBadge(){
 function saveStoredState(partial){
   try {
     const current = loadStoredState();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...current, ...partial }));
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ ...current, ...partial }));
     flashAutosaveBadge();
   } catch(e){
     /* storage pieno o non disponibile: si ignora silenziosamente, l'app resta comunque utilizzabile */
@@ -691,7 +693,7 @@ document.addEventListener('click', (e)=>{
 /* init player */
 buildSoundPanel();
 updateProgressBar();
-repeatBtn.classList.toggle('active', repeatOn); // riflette lo stato ripristinato da localStorage
+repeatBtn.classList.toggle('active', repeatOn); // riflette lo stato ripristinato dalla sessione
 loadScene(currentSceneIndex, false);
 // primo sfondo mostrato subito senza crossfade (usa il suono ripristinato, se presente)
 bgA.querySelector('.bg-layer-inner').style.backgroundImage = `url('${SCENES[currentSceneIndex].bg}')`;
@@ -1177,10 +1179,13 @@ const timerNudgeTrack = document.getElementById('timerNudgeTrack');
 const timerNudgeFill = document.getElementById('timerNudgeFill');
 const timerNudgeHandle = document.getElementById('timerNudgeHandle');
 
-let timerDuration = STORED.timerDuration || 5 * 60; // durata impostata (secondi), default 5 min (ripristinata se salvata)
+let timerDuration = STORED.timerDuration || 60; // durata impostata (secondi), default 1 min (ripristinata se salvata)
 let timerRemaining = timerDuration;
 let timerRunning = false;
 let timerInterval = null;
+
+const TIMER_MIN_SEC = 60;      // 1 minuto
+const TIMER_MAX_SEC = 60 * 60; // 60 minuti
 
 function timerFormat(sec){
   sec = Math.max(0, Math.round(sec));
@@ -1192,42 +1197,40 @@ function renderTimer(){
   timerDisplay.textContent = timerFormat(timerRemaining);
   timerStartBtn.textContent = timerRunning ? 'Pausa' : (timerRemaining < timerDuration ? 'Riprendi' : 'Avvia');
 }
-function adjustTimer(deltaMin){
+function syncTimerSliderUI(){
+  const pct = ((timerDuration - TIMER_MIN_SEC) / (TIMER_MAX_SEC - TIMER_MIN_SEC)) * 100;
+  timerNudgeHandle.style.left = pct + '%';
+  timerNudgeFill.style.width = pct + '%';
+  timerNudgeHandle.setAttribute('aria-valuenow', Math.round(timerDuration / 60));
+}
+function setTimerDuration(sec){
   if (timerRunning) return; // non modificabile mentre è in corso
-  timerDuration = Math.max(60, Math.min(180*60, timerDuration + deltaMin*60));
+  timerDuration = Math.max(TIMER_MIN_SEC, Math.min(TIMER_MAX_SEC, sec));
   timerRemaining = timerDuration;
   timerStatus.textContent = 'Pronto';
   renderTimer();
+  syncTimerSliderUI();
   saveStoredState({ timerDuration });
 }
+function adjustTimer(deltaMin){
+  setTimerDuration(timerDuration + deltaMin * 60);
+}
 
-/* Manovella: trascinando dal centro verso destra/sinistra si aggiunge o
-   toglie tempo in tempo reale (fino a ±10 minuti per corsa completa).
-   Al rilascio la manovella torna sempre al centro, pronta per un nuovo colpo. */
+/* Manovella: parte da sinistra (1 minuto) e può solo scorrere verso destra
+   per crescere fino a 60 minuti — nessun valore negativo, è uno slider
+   assoluto classico (come la barra di avanzamento del player). */
 let nudging = false;
-const NUDGE_MAX_MIN = 10;
 
 function nudgeFromClientX(clientX){
   const rect = timerNudgeTrack.getBoundingClientRect();
   const pct = Math.min(100, Math.max(0, (clientX - rect.left) / rect.width * 100));
-  const offset = pct - 50; // -50..+50
-  const deltaMin = (offset / 50) * NUDGE_MAX_MIN;
+  const sec = TIMER_MIN_SEC + (pct / 100) * (TIMER_MAX_SEC - TIMER_MIN_SEC);
 
   timerNudgeHandle.style.left = pct + '%';
-  timerNudgeFill.style.left = (offset < 0 ? pct : 50) + '%';
-  timerNudgeFill.style.width = Math.abs(offset) + '%';
-  timerNudgeHandle.setAttribute('aria-valuenow', Math.round(deltaMin));
-
-  const preview = Math.max(60, Math.min(180*60, timerDuration + deltaMin*60));
-  timerDisplay.textContent = timerFormat(preview);
-  timerNudgeHandle.dataset.pendingDelta = deltaMin;
-}
-
-function resetNudgeHandle(){
-  timerNudgeHandle.style.left = '50%';
-  timerNudgeFill.style.left = '50%';
-  timerNudgeFill.style.width = '0%';
-  timerNudgeHandle.setAttribute('aria-valuenow', 0);
+  timerNudgeFill.style.width = pct + '%';
+  timerNudgeHandle.setAttribute('aria-valuenow', Math.round(sec / 60));
+  timerDisplay.textContent = timerFormat(sec);
+  timerNudgeHandle.dataset.pendingSec = sec;
 }
 
 timerNudgeHandle.addEventListener('pointerdown', (e)=>{
@@ -1245,29 +1248,28 @@ function endNudge(){
   if (!nudging) return;
   nudging = false;
   timerNudgeTrack.classList.remove('dragging');
-  const deltaMin = parseFloat(timerNudgeHandle.dataset.pendingDelta || '0');
-  if (deltaMin) adjustTimer(deltaMin);
+  const sec = parseFloat(timerNudgeHandle.dataset.pendingSec);
+  if (!isNaN(sec)) setTimerDuration(sec);
   else renderTimer();
-  resetNudgeHandle();
 }
 timerNudgeHandle.addEventListener('pointerup', endNudge);
 timerNudgeHandle.addEventListener('pointercancel', endNudge);
 
-// Click diretto sulla barra: applica subito lo spostamento come se fosse un trascinamento
+// Click diretto sulla barra: sposta subito la manovella nella posizione cliccata
 timerNudgeTrack.addEventListener('click', (e)=>{
   if (timerRunning || e.target === timerNudgeHandle) return;
   nudgeFromClientX(e.clientX);
-  const deltaMin = parseFloat(timerNudgeHandle.dataset.pendingDelta || '0');
-  if (deltaMin) adjustTimer(deltaMin);
-  resetNudgeHandle();
+  const sec = parseFloat(timerNudgeHandle.dataset.pendingSec);
+  if (!isNaN(sec)) setTimerDuration(sec);
 });
 
-// Frecce da tastiera quando la maniglia ha il focus: ±1 minuto
+// Frecce da tastiera quando la maniglia ha il focus: ±1 minuto (sempre entro 1-60 min)
 timerNudgeHandle.addEventListener('keydown', (e)=>{
   if (e.key === 'ArrowRight' || e.key === 'ArrowUp'){ adjustTimer(1); e.preventDefault(); }
   if (e.key === 'ArrowLeft' || e.key === 'ArrowDown'){ adjustTimer(-1); e.preventDefault(); }
 });
 
+syncTimerSliderUI(); // posiziona la manovella in base alla durata iniziale/ripristinata
 
 timerStartBtn.addEventListener('click', ()=>{
   primeAlertAudio();
@@ -1313,6 +1315,19 @@ timerResetBtn.addEventListener('click', ()=>{
   renderTimer();
 });
 renderTimer();
+
+/* ---------------- 7b. ESPANSIONE WIDGET NOTE/ELENCO (solo PC) ----------------
+   Bottone che raddoppia l'altezza massima del widget per vedere più
+   note/voci contemporaneamente senza scorrere. Il bottone stesso è
+   nascosto via CSS su tablet/mobile, quindi qui basta gestire il toggle. */
+const noteslistExpandBtn = document.getElementById('noteslistExpandBtn');
+const widgetNoteslistEl = document.getElementById('widget-noteslist');
+noteslistExpandBtn.addEventListener('click', ()=>{
+  const isExpanded = widgetNoteslistEl.classList.toggle('expanded');
+  noteslistExpandBtn.classList.toggle('active', isExpanded);
+  noteslistExpandBtn.setAttribute('aria-label', isExpanded ? 'Riduci il widget' : 'Espandi il widget');
+  noteslistExpandBtn.title = isExpanded ? 'Riduci' : 'Espandi';
+});
 
 /* ---------------- 8. NOTE ---------------- */
 const noteInput = document.getElementById('noteInput');

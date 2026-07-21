@@ -197,7 +197,7 @@ html,body{
   border-radius:50%;
   background: none;
   isolation: isolate;
-  border: 1px solid var(--glass-border);
+  border:1px solid var(--glass-border);
   color:var(--text);
   display:flex; align-items:center; justify-content:center;
   cursor:pointer;
@@ -214,7 +214,7 @@ html,body{
 }
 .settings-gear:hover::before,
 .settings-gear.open::before{ background: var(--glass-strong); }
-.settings-gear.open{ transform: rotate(45deg); }
+.settings-gear.open{ transform: rotate(75deg); }
 .settings-gear svg{ width:19px; height:19px; }
 
 /* Bottone "svuota widget": su desktop/tablet sta subito a sinistra della
@@ -226,7 +226,7 @@ html,body{
   border-radius:50%;
   background: none;
   isolation: isolate;
-  border: 1px solid var(--glass-border);
+  border:1px solid var(--glass-border);
   color:var(--text);
   cursor:pointer;
   transition: background .2s, transform .2s;
@@ -465,18 +465,11 @@ html,body{
   margin: 26px 4px 6px;
   cursor:pointer;
 }
-.timer-nudge-center{
-  position:absolute; left:50%; top:50%;
-  width:2px; height:14px;
-  background: rgba(255,255,255,0.4);
-  transform: translate(-50%,-50%);
-  pointer-events:none;
-}
 .timer-nudge-fill{
-  position:absolute; top:0; bottom:0;
+  position:absolute; top:0; bottom:0; left:0;
   border-radius:999px;
   background: rgba(255,255,255,0.85);
-  left:50%; width:0%;
+  width:0%;
   pointer-events:none;
 }
 .timer-nudge-handle{
@@ -486,7 +479,7 @@ html,body{
   background:#fff;
   box-shadow: 0 2px 8px rgba(0,0,0,0.35);
   transform: translate(-50%,-50%);
-  left:50%;
+  left:0%;
   cursor:grab;
   border:2px solid rgba(255,255,255,0.9);
   transition: left .28s var(--ease);
@@ -602,9 +595,26 @@ html,body{
   flex-shrink:0;
 }
 .widget-close:hover{ background: rgba(255,255,255,0.28); }
+.widget-expand{
+  display:none; /* visibile solo su PC, vedi media query dedicata più sotto */
+  width:28px; height:28px;
+  border-radius:50%;
+  background: rgba(255,255,255,0.14);
+  border:1px solid rgba(255,255,255,0.22);
+  color:var(--text);
+  align-items:center; justify-content:center;
+  cursor:pointer;
+  flex-shrink:0;
+  margin-right:6px;
+  transition: background .2s, transform .3s var(--ease);
+}
+.widget-expand:hover{ background: rgba(255,255,255,0.28); }
+.widget-expand svg{ width:15px; height:15px; transition: transform .3s var(--ease); }
+.widget-expand.active svg{ transform: rotate(180deg); }
 .widget-body{
   padding: 0 18px 10px;
   overflow-y:auto;
+  min-height:0; /* necessario perché lo scroll funzioni correttamente dentro un contenitore flex con altezza limitata */
 }
 
 /* ---- Positions (desktop) ---- */
@@ -618,6 +628,14 @@ html,body{
   top: 84px; right: 24px;
   width: 300px;
   max-height: calc(100vh - 340px);
+  transition: max-height .38s var(--ease), opacity .38s var(--ease), transform .38s var(--ease);
+}
+/* Espansione verso il basso (solo PC, vedi @media min-width:981px più sotto):
+   fino al doppio dell'altezza normale, per vedere più note/voci insieme
+   senza dover scorrere. Il limite min(...) evita che sfori il viewport
+   su schermi con poca altezza disponibile. */
+#widget-noteslist.expanded{
+  max-height: min(calc((100vh - 340px) * 2), calc(100vh - 40px));
 }
 /* Orologio: centro alto, nessun vetro, dimensione ridotta rispetto a prima. */
 #widget-clock{
@@ -965,6 +983,11 @@ html,body{
 }
 
 /* ================= Responsive ================= */
+/* Espansione del widget Note/Elenco: funzionalità esclusiva PC (schermi
+   larghi, oltre la soglia tablet/mobile usata nel resto del file) */
+@media (min-width: 981px){
+  .widget-expand{ display:flex; }
+}
 @media (max-width: 980px){
   #widget-calendar{ left:16px; width:260px; }
   #widget-noteslist{ right:16px; width:270px; max-height: calc(100vh - 300px); }

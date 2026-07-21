@@ -186,15 +186,14 @@
       </div>
 
       <div class="subnav-view" data-view="timer">
-        <div class="sw-time" id="timerDisplay">05:00</div>
+        <div class="sw-time" id="timerDisplay">01:00</div>
         <div class="timer-nudge-track" id="timerNudgeTrack">
-          <div class="timer-nudge-center"></div>
           <div class="timer-nudge-fill" id="timerNudgeFill"></div>
           <div class="timer-nudge-handle" id="timerNudgeHandle" tabindex="0" role="slider"
-               aria-valuemin="-10" aria-valuemax="10" aria-valuenow="0"
-               aria-label="Trascina per aggiungere o togliere minuti al timer"></div>
+               aria-valuemin="1" aria-valuemax="60" aria-valuenow="1"
+               aria-label="Trascina per impostare la durata del timer, da 1 a 60 minuti"></div>
         </div>
-        <div class="timer-nudge-labels"><span>−10 min</span><span>+10 min</span></div>
+        <div class="timer-nudge-labels"><span>1 min</span><span>60 min</span></div>
         <div class="sw-buttons">
           <button class="sw-btn primary" id="timerStartBtn">Avvia</button>
           <button class="sw-btn" id="timerResetBtn">Azzera</button>
@@ -211,6 +210,9 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5M8 13h8M8 17h5"/></svg>
         <span id="noteslistLabel">Note</span>
       </div>
+      <button class="widget-expand" id="noteslistExpandBtn" aria-label="Espandi il widget" title="Espandi">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
       <button class="widget-close" data-close="noteslist">✕</button>
     </div>
     <div class="widget-body">
